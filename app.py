@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("💰 TÍNH TIỀN LÃI KHÁCH HÀNG GỬI TIẾT KIỆM_TS. VŨ ĐỨC BÌNH")
+st.title("💰 PHẦN MỀM TÍNH TIỀN GỬI TIẾT KIỆM_TS. VŨ ĐỨC BÌNH")
 st.caption("Quy ước: 1 năm = 365 ngày | Ngày gửi được tính lãi | Ngày rút không tính lãi")
 
 
