@@ -1,7 +1,7 @@
 import streamlit as st
 from datetime import date
 from dateutil.relativedelta import relativedelta
-
+st.image("KETOAN.jpg")
 # ============================================================
 # CẤU HÌNH TRANG
 # ============================================================
