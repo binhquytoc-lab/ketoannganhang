@@ -1,7 +1,6 @@
 import streamlit as st
 from datetime import date
 from dateutil.relativedelta import relativedelta
-st.image("KETOAN.jpg")
 # ============================================================
 # CẤU HÌNH TRANG
 # ============================================================
@@ -11,6 +10,8 @@ st.set_page_config(
     page_icon="💰",
     layout="wide"
 )
+
+st.image("KETOAN.jpg")
 
 st.title("💰 PHẦN MỀM TÍNH TIỀN GỬI TIẾT KIỆM_TS. VŨ ĐỨC BÌNH")
 
@@ -596,6 +597,9 @@ calculate_button = st.button(
 
 if calculate_button:
 
+    # Tiền lãi có kỳ hạn đã trả hàng tháng và phải thu hồi khi rút trước hạn.
+    interest_reclaimed = 0.0
+
     # ========================================================
     # TRƯỜNG HỢP RÚT TRƯỚC HẠN
     # ========================================================
@@ -609,6 +613,7 @@ if calculate_button:
         # Lãi kép không còn được áp dụng
         actual_interest_type = "Lãi đơn"
 
+        # Lãi không kỳ hạn được tính cho toàn bộ thời gian gửi thực tế.
         total_interest, monthly_results = (
             calculate_simple_interest(
                 principal,
@@ -618,8 +623,36 @@ if calculate_button:
             )
         )
 
+        # Nếu chọn nhận lãi hàng tháng, ngân hàng thu hồi toàn bộ
+        # lãi có kỳ hạn đã trả cho những tháng đã đến ngày nhận lãi.
+        # Tháng chưa đủ kỳ tại ngày rút không được tính là đã nhận lãi.
+        if interest_payment == "Hàng tháng":
+            month_index = 1
+            while True:
+                # Tính từng ngày nhận lãi từ ngày gửi ban đầu để tránh
+                # ngày nhận lãi bị trôi dần ở các tháng ngắn (ví dụ 31/01).
+                previous_payout_date = (
+                    start_date + relativedelta(months=month_index - 1)
+                )
+                next_payout_date = (
+                    start_date + relativedelta(months=month_index)
+                )
+
+                if next_payout_date > end_date:
+                    break
+
+                paid_period_days = (
+                    next_payout_date - previous_payout_date
+                ).days
+                interest_reclaimed += (
+                    principal * annual_rate * paid_period_days / 365
+                )
+                month_index += 1
+
+        # Tiền thực nhận = gốc - lãi có kỳ hạn bị thu hồi + lãi không kỳ hạn.
         final_amount = (
             principal
+            - interest_reclaimed
             + total_interest
         )
 
@@ -737,28 +770,31 @@ if calculate_button:
 
     st.subheader("6️⃣ KẾT QUẢ TÍNH TIỀN")
 
-    result1, result2, result3 = st.columns(3)
+    if is_early_withdrawal and interest_payment == "Hàng tháng":
+        result1, result2, result3, result4 = st.columns(4)
 
-    with result1:
+        with result1:
+            st.metric("💵 Tiền gốc ban đầu", format_money(principal))
 
-        st.metric(
-            "💵 Tiền gốc",
-            format_money(principal)
-        )
+        with result2:
+            st.metric("📉 Lãi có kỳ hạn thu hồi", format_money(interest_reclaimed))
 
-    with result2:
+        with result3:
+            st.metric("📈 Lãi không kỳ hạn", format_money(total_interest))
 
-        st.metric(
-            "📈 Tổng tiền lãi",
-            format_money(total_interest)
-        )
+        with result4:
+            st.metric("💰 Tổng tiền thực nhận", format_money(final_amount))
+    else:
+        result1, result2, result3 = st.columns(3)
 
-    with result3:
+        with result1:
+            st.metric("💵 Tiền gốc", format_money(principal))
 
-        st.metric(
-            "💰 Tổng tiền nhận",
-            format_money(final_amount)
-        )
+        with result2:
+            st.metric("📈 Tổng tiền lãi", format_money(total_interest))
+
+        with result3:
+            st.metric("💰 Tổng tiền nhận", format_money(final_amount))
 
 
     # ========================================================
@@ -792,6 +828,12 @@ if calculate_button:
 **Lãi suất thực tế áp dụng:** {actual_rate_percent:.2f}%/năm
 
 **Trạng thái:** {early_withdrawal_note}
+
+{f"**Lãi có kỳ hạn đã nhận bị thu hồi:** {format_money(interest_reclaimed)}" if is_early_withdrawal and interest_payment == "Hàng tháng" else ""}
+
+{f"**Lãi không kỳ hạn được tính lại:** {format_money(total_interest)}" if is_early_withdrawal else ""}
+
+{f"**Công thức tiền thực nhận:** {format_money(principal)} - {format_money(interest_reclaimed)} + {format_money(total_interest)} = {format_money(final_amount)}" if is_early_withdrawal and interest_payment == "Hàng tháng" else ""}
 """
     )
 
@@ -822,6 +864,18 @@ Do đó:
   sang lãi đơn vì khoản tiền đã bị rút trước hạn.
 """
         )
+
+        if interest_payment == "Hàng tháng":
+            st.info(
+                f"""
+**Đối soát lãi khi rút trước hạn**
+
+- Lãi có kỳ hạn đã trả và bị thu hồi: **{format_money(interest_reclaimed)}**
+- Lãi không kỳ hạn tính lại từ ngày gửi đến trước ngày rút: **{format_money(total_interest)}**
+- Tiền thực nhận = gốc - lãi bị thu hồi + lãi không kỳ hạn
+- **{format_money(principal)} - {format_money(interest_reclaimed)} + {format_money(total_interest)} = {format_money(final_amount)}**
+"""
+            )
 
 
     # ========================================================
@@ -980,9 +1034,13 @@ Lãi suất áp dụng:
 
 Công thức:
 
-**Tiền lãi = Tiền gốc × Lãi suất không kỳ hạn × Số ngày / 365**
+**Lãi không kỳ hạn = Tiền gốc × Lãi suất không kỳ hạn × Số ngày / 365**
 
-Khi rút trước hạn, hệ thống **không sử dụng lãi suất có kỳ hạn**.
+Nếu chọn nhận lãi hàng tháng, lãi có kỳ hạn đã trả cho các tháng đã đến ngày nhận lãi sẽ bị thu hồi.
+
+**Tiền thực nhận = Tiền gốc - Lãi có kỳ hạn bị thu hồi + Lãi không kỳ hạn**
+
+Khi rút trước hạn, hệ thống **không sử dụng lãi suất có kỳ hạn để tính lãi cuối cùng**.
 
 Nếu người dùng chọn **lãi kép**, hệ thống cũng chuyển sang
 **lãi đơn** vì khoản tiền đã rút trước hạn.
