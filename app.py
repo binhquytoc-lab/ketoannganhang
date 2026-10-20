@@ -558,6 +558,8 @@ if calculate_button:
         )
 
         if interest_payment == "Hàng tháng":
+            # Thu hồi lãi có kỳ hạn đã thực trả theo các kỳ tháng
+            # mà ngày nhận lãi không vượt quá ngày khách hàng rút.
             interest_reclaimed, payout_rows = (
                 calculate_monthly_payout_reclaimed(
                     principal,
@@ -568,6 +570,24 @@ if calculate_button:
                     int(term_months)
                 )
             )
+
+        elif interest_payment == "Đầu kỳ":
+            # Lãi đầu kỳ được trả trước cho TOÀN BỘ kỳ hạn đăng ký.
+            # Khi rút trước hạn, thu hồi toàn bộ khoản lãi đã trả trước.
+            full_term_days = (maturity_date - start_date).days
+            interest_reclaimed = calculate_interest(
+                principal,
+                annual_rate,
+                full_term_days,
+                term_rate_unit
+            )
+            payout_rows = [{
+                "Lần nhận lãi": 1,
+                "Từ ngày": start_date.strftime("%d/%m/%Y"),
+                "Ngày nhận lãi": start_date.strftime("%d/%m/%Y"),
+                "Số ngày": full_term_days,
+                "Lãi có kỳ hạn bị thu hồi": interest_reclaimed
+            }]
 
         final_amount = (
             principal - interest_reclaimed + total_interest
@@ -652,13 +672,20 @@ if calculate_button:
     st.divider()
     st.subheader("6️⃣ KẾT QUẢ TÍNH TIỀN")
 
-    if is_early_withdrawal and interest_payment == "Hàng tháng":
+    if is_early_withdrawal and interest_payment in ["Hàng tháng", "Đầu kỳ"]:
         result1, result2, result3, result4 = st.columns(4)
 
         result1.metric("Gốc ban đầu", format_money(principal))
         result2.metric("Lãi có kỳ hạn thu hồi", format_money(interest_reclaimed))
         result3.metric("Lãi không kỳ hạn", format_money(total_interest))
         result4.metric("Tiền thực nhận", format_money(final_amount))
+
+        if interest_payment == "Đầu kỳ":
+            st.warning(
+                "Rút trước hạn với hình thức nhận lãi đầu kỳ: toàn bộ lãi "
+                "có kỳ hạn đã trả trước cho cả kỳ hạn đăng ký được thu hồi. "
+                "Khách hàng chỉ được hưởng lãi không kỳ hạn tính lại."
+            )
 
     elif interest_payment == "Đầu kỳ" and not is_early_withdrawal:
         result1, result2, result3 = st.columns(3)
@@ -837,6 +864,10 @@ Mẫu số là 365 nếu chọn lãi suất năm và 30 nếu chọn lãi suất
 Nếu nhận lãi hàng tháng, tiền thực nhận được tính:
 
 **Tiền thực nhận = Gốc - Lãi có kỳ hạn bị thu hồi + Lãi không kỳ hạn tính lại.**
+
+Nếu nhận lãi đầu kỳ và rút trước hạn, thu hồi toàn bộ lãi có kỳ hạn đã trả trước cho cả kỳ hạn đăng ký:
+
+**Tiền thực nhận = Gốc - Toàn bộ lãi đầu kỳ đã nhận + Lãi không kỳ hạn tính lại.**
 
 ### 4. Tự động tái tục khi nhận lãi cuối kỳ
 
