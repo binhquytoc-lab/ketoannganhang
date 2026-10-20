@@ -189,20 +189,24 @@ def calculate_compound_interest(
 
 def calculate_rollover(
     principal,
-    rate,
+    term_rate,
     start_date,
     end_date,
     term_months,
-    rate_unit
+    term_rate_unit,
+    non_term_rate,
+    non_term_rate_unit
 ):
     """
     Tự động tái tục theo kỳ hạn ban đầu.
 
-    Mỗi kỳ hoàn tất:
-        Lãi kỳ = Gốc đầu kỳ x lãi suất x số ngày / mẫu số
-        Gốc kỳ sau = Gốc đầu kỳ + lãi kỳ
+    Kỳ hoàn tất:
+        - Tính lãi theo lãi suất có kỳ hạn.
+        - Nhập toàn bộ lãi vào gốc để tái tục kỳ tiếp theo.
 
-    Kỳ chưa hoàn tất được tính lãi đơn trên số gốc hiện tại.
+    Kỳ cuối chưa hoàn tất:
+        - Tính lãi theo lãi suất không kỳ hạn.
+        - Không phát sinh tái tục mới.
     """
     current_principal = principal
     total_interest = 0.0
@@ -213,11 +217,22 @@ def calculate_rollover(
     )
 
     for period in periods:
+        if period["full_term"]:
+            applied_rate = term_rate
+            applied_rate_unit = term_rate_unit
+            rate_type = "Lãi suất có kỳ hạn"
+            status = "Đã đáo hạn - nhập lãi vào gốc"
+        else:
+            applied_rate = non_term_rate
+            applied_rate_unit = non_term_rate_unit
+            rate_type = "Lãi suất không kỳ hạn"
+            status = "Kỳ chưa hoàn tất - tính lãi không kỳ hạn"
+
         interest = calculate_interest(
             current_principal,
-            rate,
+            applied_rate,
             period["days"],
-            rate_unit
+            applied_rate_unit
         )
 
         ending_principal = current_principal + interest
@@ -228,18 +243,16 @@ def calculate_rollover(
             "Từ ngày": period["start"].strftime("%d/%m/%Y"),
             "Đến trước ngày": period["end"].strftime("%d/%m/%Y"),
             "Số ngày": period["days"],
-            "Trạng thái kỳ": (
-                "Đã đáo hạn - nhập lãi vào gốc"
-                if period["full_term"]
-                else "Kỳ chưa hoàn tất"
-            ),
+            "Trạng thái kỳ": status,
+            "Lãi suất áp dụng": rate_type,
             "Gốc đầu kỳ": current_principal,
             "Lãi kỳ": interest,
             "Gốc + lãi cuối kỳ": ending_principal
         })
 
-        # Nhập lãi vào gốc khi kỳ đã hoàn tất.
-        # Kỳ chưa hoàn tất cũng giữ số gốc + lãi để tính tổng tiền nhận.
+        # Sau kỳ hoàn tất, lãi được nhập vào gốc.
+        # Ở kỳ cuối chưa hoàn tất, đây chỉ là số tiền nhận khi rút,
+        # không được dùng để tái tục thêm kỳ nào nữa.
         current_principal = ending_principal
 
     return total_interest, results, current_principal
@@ -451,8 +464,8 @@ elif is_on_maturity:
 else:
     st.warning(
         "⚠️ Ngày rút sau ngày đáo hạn. "
-        "Ứng dụng sẽ tự động tái tục theo kỳ hạn ban đầu. "
-        "Lãi cuối kỳ được nhập vào gốc tại mỗi lần đáo hạn."
+        "Các kỳ đã hoàn tất được tính lãi có kỳ hạn và nhập lãi vào gốc khi tái tục. "
+        "Kỳ cuối chưa hoàn tất được tính theo lãi suất không kỳ hạn."
     )
 
 
@@ -580,13 +593,18 @@ if calculate_button:
                 start_date,
                 end_date,
                 int(term_months),
-                term_rate_unit
+                term_rate_unit,
+                non_term_rate,
+                non_term_rate_unit
             )
         )
 
         monthly_results = []
-        actual_interest_type = "Lãi kép theo kỳ tái tục"
-        status_note = "Tự động tái tục, nhập lãi vào gốc mỗi kỳ"
+        actual_interest_type = "Tái tục theo kỳ; kỳ lẻ tính lãi không kỳ hạn"
+        status_note = (
+            "Các kỳ hoàn tất áp dụng lãi có kỳ hạn và nhập lãi vào gốc; "
+            "kỳ chưa hoàn tất áp dụng lãi không kỳ hạn"
+        )
 
     # --------------------------------------------------------
     # C. KHÔNG RÚT TRƯỚC HẠN, CHƯA CÓ TÁI TỤC
@@ -692,8 +710,9 @@ if calculate_button:
 
     if rollover_used:
         st.info(
-            "Các kỳ đã hoàn tất được nhập lãi vào gốc. "
-            "Kỳ chưa hoàn tất tính lãi trên số gốc đã tích lũy."
+            "Các kỳ đã hoàn tất được tính theo lãi suất có kỳ hạn và nhập lãi vào gốc. "
+            "Kỳ cuối chưa hoàn tất được tính theo lãi suất không kỳ hạn trên số gốc "
+            "đã tích lũy từ các kỳ trước."
         )
 
     # --------------------------------------------------------
@@ -712,6 +731,7 @@ if calculate_button:
                 "Đến trước ngày": row["Đến trước ngày"],
                 "Số ngày": row["Số ngày"],
                 "Trạng thái": row["Trạng thái kỳ"],
+                "Lãi suất áp dụng": row["Lãi suất áp dụng"],
                 "Gốc đầu kỳ": format_money(row["Gốc đầu kỳ"]),
                 "Lãi kỳ": format_money(row["Lãi kỳ"]),
                 "Gốc + lãi cuối kỳ": format_money(row["Gốc + lãi cuối kỳ"])
@@ -820,13 +840,19 @@ Nếu nhận lãi hàng tháng, tiền thực nhận được tính:
 
 ### 4. Tự động tái tục khi nhận lãi cuối kỳ
 
-Khi một kỳ hạn hoàn tất:
+Với mỗi kỳ hạn đã hoàn tất:
 
 **Lãi kỳ = Gốc đầu kỳ × Lãi suất có kỳ hạn × Số ngày / mẫu số**
 
 **Gốc kỳ tiếp theo = Gốc đầu kỳ + Lãi kỳ**
 
 Kỳ hạn tiếp theo bằng đúng kỳ hạn ban đầu ({term_months} tháng).
+
+Nếu rút sau ngày đáo hạn nhưng kỳ cuối chưa hoàn tất:
+
+**Lãi kỳ chưa hoàn tất = Gốc đã tích lũy × Lãi suất không kỳ hạn × Số ngày / mẫu số**
+
+Kỳ chưa hoàn tất không được nhập lãi có kỳ hạn; chỉ áp dụng lãi suất không kỳ hạn cho phần thời gian này.
 
 ### 5. Quy tắc ngày
 
